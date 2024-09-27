@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  bird-api:
+    container_name: bird-api-container
+    build:
+      context: ./bird
+    env_file:
+      - bird/.env
+    networks:
+      - bird-network
+    ports:
+      - "4201:4201"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4201/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  bird-image-api:
+    container_name: bird-image-api-container
+    build:
+      context: ./birdImage
+    env_file:
+      - birdImage/.env
+    networks:
+      - bird-network
+    ports:
+      - "4200:4200"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4200/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  bird-network:
+    driver: bridge

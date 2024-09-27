@@ -1,0 +1,28 @@
+global:
+  env: staging
+  region: us-east-1
+  owner: lifi
+  project: devops
+  version: 1.0.0
+
+app:
+  modules:
+    - name: bird
+    - name: birdImage
+
+k3s:
+  instance_type: t3.medium
+  max_size: 3
+  min_size: 1
+  desired_capacity: 2
+  node_port: 30080
+  ebs_volume_size: 20
+
+network:
+  vpc:
+    cidr-block: 10.0.16.0/20
+    domain-name: staging.lifi.internal
+    subnets:
+      public-blocks: ["10.0.16.0/24", "10.0.17.0/24", "10.0.18.0/24"]
+      private-blocks: ["10.0.20.0/24", "10.0.21.0/24", "10.0.22.0/24"]
+    zones: ["a", "b", "c"]

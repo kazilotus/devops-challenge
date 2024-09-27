@@ -1,0 +1,8 @@
+apiVersion: v2
+name: bird-app
+description: A Helm chart for deploying Bird apps
+version: 1.0.0
+dependencies:
+  - name: ingress-nginx
+    version: 4.11.2
+    repository: "https://kubernetes.github.io/ingress-nginx"

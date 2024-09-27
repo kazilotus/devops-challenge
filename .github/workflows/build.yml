@@ -1,0 +1,87 @@
+name: Build and Deploy Docker Images to ECR
+
+on:
+  push:
+    paths:
+      - '.github/**'
+      - 'apps/**'
+    branches:
+      - main
+      - stage
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images to ECR
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+      PROJECT: devops
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          region: ${{ env.AWS_REGION }}
+
+      - name: Set Environment Variable Based on Branch
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+          elif [ "${{ github.ref }}" == "refs/heads/stage" ]; then
+            echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          fi
+
+      - name: Find All App Directories
+        id: find-apps
+        run: |
+          # Find all apps by listing subdirectories under 'apps/'
+          ALL_APPS=$(ls -d apps/*/ | cut -d'/' -f2 | sort | uniq | tr '\n' ' ')
+          echo "All apps: $ALL_APPS"
+          echo "APPS=$ALL_APPS" >> $GITHUB_ENV
+
+      - name: Get Short Commit ID
+        id: commit-id
+        run: |
+          # Get short SHA of the current commit
+          SHORT_COMMIT=$(git rev-parse --short HEAD)
+          echo "Commit short SHA: $SHORT_COMMIT"
+          echo "COMMIT_ID=$SHORT_COMMIT" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Images for Each App
+        run: |
+          for APP in ${{ env.APPS }}; do
+            APP_LOWER=$(echo "$APP" | tr '[:upper:]' '[:lower:]')
+            echo "Building and pushing Docker images for app: $APP_LOWER"
+
+            # ECR repository name
+            ECR_REPO_NAME="${{ env.ENVIRONMENT }}-${{ env.PROJECT }}-${APP_LOWER}-repo"
+
+            # Image tags
+            IMAGE_TAG_LATEST="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO_NAME:latest"
+            IMAGE_TAG_COMMIT="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/$ECR_REPO_NAME:${{ env.COMMIT_ID }}"
+
+            # Build and push the image with both the 'latest' and commit ID tags
+            docker build -t $IMAGE_TAG_LATEST -t $IMAGE_TAG_COMMIT -f ./apps/$APP/Dockerfile ./apps/$APP
+
+            # Push both tags
+            docker push $IMAGE_TAG_LATEST
+            docker push $IMAGE_TAG_COMMIT
+          done
